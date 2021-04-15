@@ -15,5 +15,8 @@
   "bugs": {
     "url": "https://github.com/archanpatkar/vostas/issues"
   },
-  "homepage": "https://github.com/archanpatkar/vostas#readme"
+  "homepage": "https://github.com/archanpatkar/vostas#readme",
+  "dependencies": {
+    "styp": "^0.0.2"
+  }
 }
