@@ -1,2 +1,2 @@
 # vostas
-Sat Solver w/ small DSL
+Sat Solver written in Javascript (currently based on DPLL)
