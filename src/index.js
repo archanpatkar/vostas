@@ -28,17 +28,32 @@ function printClause(c) {
     return c;
 }
 
-Clause.prototype.replace = function(varn, val) {
+Clause.prototype.replace = function(i) {
     return this.cata({
-        Lit: ({ name, neg }) => name === varn? (neg?!val:val):Clause.Lit(name,neg),
-        Clause: ({ lits }) => Clause.Clause(lits.map(v => Clause.is(v)?v.replace(varn,val):v)),
+        Lit: ({ name, neg }) => (name in i)? (neg?!i[name]:i[name]):Clause.Lit(name,neg),
+        Clause: ({ lits }) => Clause.Clause(lits.map(v => Clause.is(v)?v.replace(i):v)),
     });
 };
 
+const StillPartial = {};
+
 Clause.prototype.reduce = function(i) {
+    if(Object.keys(i).length === 0) null;
+    // console.log("Partial Interpretation")
+    // console.log(i)
     return this.cata({
-        Lit: ({ name, neg }) => name === varn? (neg?!val:val):Clause.Lit(name,neg),
-        Clause: ({ lits }) => Clause.Clause(lits.map(v => Clause.is(v)?v.replace(varn,val):v)),
+        // Clause.Lit(name,neg)
+        Lit: ({ name, neg }) => (name in i)? (neg?!i[name]:i[name]):StillPartial,
+        Clause: ({ lits }) => {
+            // console.log("lits ->")
+            // console.log(lits);
+            let out = lits.map(v => Clause.is(v)?v.reduce(i):v);
+            console.log(out);
+            out = out.reduce((acc,v) => acc + v, 0);
+            console.log(out);
+            if(typeof out === "number") return out?true:false;
+            return StillPartial;
+        },
     });
 }
 
@@ -92,36 +107,58 @@ function replaceVar(l,val,clauses) {
 //     return dpll(replaceVar(l,true,clauses)) || dpll(replaceVar(l,false,clauses));
 // }
 
-function chooseliteral(clause) {
-    // console.log("Choosing Literal");
-    // console.log(clause);
-    if(Clause.Clause.is(clause)) {
-        for(let c of clause.lits) {
-            if(Clause.Lit.is(c)) return c.name;
-            if(typeof c === "bool" && c) {
-                // console.log("found bool in formula");
-                return c;
-            }
+function chooseliteral(clauses, i) {
+    for(let clause of clauses) 
+    {
+        if(Clause.Clause.is(clause)) {
+            for(let c of clause.lits)  {
+                if(Clause.Lit.is(c) && !(c.name in i)) return c.name; 
+            }       
         }
-        // console.log("after")
+        else if(!(clause.name in i)) return clause.name;
     }
-    throw new Error("Expected Clause!");
 }
 
-function dpll(clause) {
-    if(typeof clause === "bool") return clause;
-    if(Array.isArray(clause)) return clause.reduce((acc,v) => acc && dpll(v),true);
-    if(Clause.Clause.is(clause) && clause.lits.includes(true)) return true;
-    else {
-        const lit = chooseliteral(clause);
-        // console.log("The choosen literal is:" + lit);
-        if(typeof lit === "bool") return lit;
-        const ct = clause.replace(lit,true);
-        // console.log(printClause(ct));
-        const cf = clause.replace(lit,false);
-        // console.log(printClause(cf));
-        return dpll(ct) || dpll(cf);
+function isconsistant(clauses,i) {
+    // console.log("Checking if consistent");
+    // console.log(clauses)
+    let out = true;
+    for(let c of clauses){
+        const temp = c.reduce(i);
+        console.log("temp: ")
+        console.log(temp);
+        if((typeof temp) !== "boolean") return temp;
+        out = out && temp;
+        if(!out) return false;
     }
+    return out;
+}
+
+// if(Array.isArray(clause)) {
+// return clause.reduce((acc,v) => acc && dpll(v),true);
+// } 
+
+function dpll(clauses, i = {}) {
+    console.log("Clauses ===>")
+    console.log(printClause(clauses.map(p => p.replace(i))))
+    console.log("Parital Interpretation ===>")
+    console.log(i)
+    const c = isconsistant(clauses,i);
+    console.log("Is Consistent ===>")
+    console.log(c);
+    if((typeof c) === "boolean") return c;
+    const lit = chooseliteral(clauses,i);
+    console.log("Choosen Literal ===>")
+    console.log(lit);
+    const ct = Object.assign({},i)
+    ct[lit] = true;
+    console.log(ct)
+    if(dpll(clauses,ct)) return true;
+    const cf = Object.assign({},i)
+    cf[lit] = false;
+    console.log(cf)
+    if(dpll(clauses,cf)) return true;
+    return false;
 }
 
 
@@ -131,4 +168,6 @@ const test1 = [
 ];
 
 console.log(printClause(test1));
+// console.log(isconsistant(test1,{ a:false, b:false, c:false }));
+// console.log(chooseliteral(test1,{}));
 console.log(dpll(test1));
