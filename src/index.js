@@ -35,6 +35,12 @@ Clause.prototype.replace = function(varn, val) {
     });
 };
 
+Clause.prototype.reduce = function(i) {
+    return this.cata({
+        Lit: ({ name, neg }) => name === varn? (neg?!val:val):Clause.Lit(name,neg),
+        Clause: ({ lits }) => Clause.Clause(lits.map(v => Clause.is(v)?v.replace(varn,val):v)),
+    });
+}
 
 // function cnf(formula) {
 // }
@@ -57,10 +63,6 @@ Clause.prototype.replace = function(varn, val) {
 
 // Placeholder
 function unitpropgation(l, clauses) {
-    // todo
-}
-
-function isunit(clause) {
     // todo
 }
 
