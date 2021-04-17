@@ -1,12 +1,31 @@
 const {equal} = require("saman");
 const {sum, tagged} = require("styp");
 
+// Currently written in an simple but slow and unoptimized way will make it efficient later
 const Formula = sum("Formula", {
     Var:["name"],
     And:["oprs"],
     Or:["oprs"],
+    Imp: ["oprs"],
+    Bi:["oprs"],
     Not:["v"]
 });
+
+Formula.prototype.convert = function() {
+    // Convert to cnf
+    // return this.cata({
+    //     Var: ({ name }) => name === varn? val: Formula.Var(name),
+    //     And: ({op1, op2}) => Formula.And(
+    //         Formula.is(op1)?op1.replace(varn,val):op1,
+    //         Formula.is(op1)?op2.replace(varn,val):op2
+    //     ),
+    //     Or: ({op1, op2}) => Formula.Or(
+    //         Formula.is(op1)?op1.replace(varn,val):op1,
+    //         Formula.is(op1)?op2.replace(varn,val):op2
+    //     ),
+    //     Not: ({ v }) => Formula.Not(Formula.is(v)?v.replace(varn,val):v)
+    // });
+};
 
 const Clause = sum("Clause", {
     Lit:["name","neg"],
@@ -14,18 +33,9 @@ const Clause = sum("Clause", {
 });
 
 function printClause(c) {
-    if(Array.isArray(c)) {
-        let str = "{";
-        for(let cl in c) str += printClause(c[cl]) + (cl+1 < c.length?", ":"")
-        str += "}"
-        return str
-    }
-    if(Clause.Lit.is(c)) return `${c.neg?"¬":""}${c.name}`
-    if(Clause.Clause.is(c)) {
-        let str = "";
-        for(let cl in c.lits) str += printClause(c.lits[cl]) + (cl+1 < c.lits.length?" ∨ ":"");
-        return str
-    }
+    if(Array.isArray(c)) return `{ ${c.map(printClause).join(", ")} }`;
+    if(Clause.Lit.is(c)) return `${c.neg?"¬":""}${c.name}`;
+    if(Clause.Clause.is(c)) return c.lits.map(printClause).join(" ∨ ");
     return c;
 }
 
@@ -40,30 +50,40 @@ const StillPartial = "Partial";
 
 Clause.prototype.reduce = function(i) {
     if(Object.keys(i).length === 0) null;
-    // console.log("Partial Interpretation")
-    // console.log(i)
     return this.cata({
-        // Clause.Lit(name,neg)
         Lit: ({ name, neg }) => (name in i)? (neg?!i[name]:i[name]):StillPartial,
         Clause: ({ lits }) => {
             let out = lits.map(v => Clause.is(v)?v.reduce(i):v)
-                          .reduce((acc,v) => acc + v, 0);
+            if(out.includes(true)) return true;
+            out = out.reduce((acc,v) => acc + v, 0);
             return typeof out === "number"?out?true:false:StillPartial;
         }
     });
 }
 
-Clause.prototype.eliminate = function(l) {
+Clause.prototype.in = function(l) {
     return this.cata({
         Lit: curr => {
-            if(curr.name === l.name && curr.neg === !l.neg) return null;
+            return curr.name === l.name && curr.neg === l.neg;
+        },
+        Clause: ({ lits }) => {
+            let out = lits.map(v => Clause.is(v)?v.in(l):v);
+            if(out.includes(true)) return true;
+            return false;
+        }
+    });
+}
+
+Clause.prototype.eliminate = function(l,opp=false) {
+    return this.cata({
+        Lit: curr => {
+            if(curr.name === l.name && !opp) return null;
+            if(curr.name === l.name && curr.neg !== l.neg) return null;
             return curr;
         },
         Clause: ({ lits }) => {
-            let out = lits.filter(v => Clause.is(v)?v.eliminate(l):v)
+            let out = lits.map(v => Clause.is(v)?v.eliminate(l,opp):v)
                           .filter(v => v !== null);
-            // console.log("eliminating:")
-            // console.log(out);
             if(out.length === 1) return out[0];
             if(out.length === 0) return null;
             return Clause.Clause(out);
@@ -78,35 +98,23 @@ function findLits(clauses) {
     return 0;
 }
 
-// function cnf(formula) {
-// }
-
-
-// Formula.prototype.replace = function(varn, val) {
-//     return this.cata({
-//         Var: ({ name }) => name === varn? val: Formula.Var(name),
-//         And: ({op1, op2}) => Formula.And(
-//             Formula.is(op1)?op1.replace(varn,val):op1,
-//             Formula.is(op1)?op2.replace(varn,val):op2
-//         ),
-//         Or: ({op1, op2}) => Formula.Or(
-//             Formula.is(op1)?op1.replace(varn,val):op1,
-//             Formula.is(op1)?op2.replace(varn,val):op2
-//         ),
-//         Not: ({ v }) => Formula.Not(Formula.is(v)?v.replace(varn,val):v)
-//     });
-// };
-
-// function dpll(clauses) {
-//     if(clauses.reduce((acc,v) => acc + v, 0)) return true;
-//     else if(clauses.includes(empty)) return false;
-//     const uc = clauses.filter(isunit);
-//     for(let l of uc) clauses = unitpropgation(l,clauses);
-//     const pl = clauses.filter(ispure);
-//     for(let l of pl) clauses = pureliteralassign(l,clauses);
-//     const l = chooseliteral(clauses);
-//     return dpll(replaceVar(l,true,clauses)) || dpll(replaceVar(l,false,clauses));
-// }
+function eliminate(clauses,lits,opp=false) {
+    console.log("inside eliminate");
+    console.log("opp:" + opp);
+    console.log(printClause(clauses));
+    console.log(lits);
+    if(lits.length == 0) return clauses;
+    const out = [];
+    for(let c in clauses) {
+        for(let u of lits) {
+            const r = clauses[c].eliminate(u,opp);
+            if(r !== null) out[c] = r;
+        } 
+    }
+    console.log("eliminate out:")
+    console.log(printClause(out));
+    return out;
+}
 
 function isconsistant(clauses,i,check_all=false) {
     let out = true;
@@ -136,27 +144,15 @@ function isunit(clause) {
 }
 
 function unitpropgation(clauses,i) {
-    console.log("Unit Propogation");
-    console.log(clauses);
     const uc = clauses.filter(isunit);
     for(let v in i) {
-        if(i[v]) uc.append(Clause.Lit(v,false))
-        else uc.append(Clause.Lit(v,true))
+        if(i[v]) uc.push(Clause.Lit(v,false))
+        // else uc.push(Clause.Lit(v,true))
     }
-    console.log("Units ===>");
-    console.log(uc)
     const out = clauses.filter(p => !uc.includes(p));
-    for(let c in out) {
-        console.log("here1:")
-        console.log(out[c])
-        for(let u of uc) {
-            const r = out[c].eliminate(u);
-            if(r !== null) out[c] = r;
-        } 
-    }
-    console.log("Final Filtered");
-    console.log(printClause(out));
-    return {clauses: out, i};
+    // console.log("out of UP");
+    // console.log(printClause(out));
+    return {clauses: eliminate(out,uc), i};
 }
 
 function pure(clauses,i) {
@@ -175,57 +171,61 @@ function pure(clauses,i) {
             }
         }
     }
-    const purelits = Array.from(lits).filter(l => !notpure.has(l));
-    let out = [];
-    for(let c in out) {
-        for(let u of purelits) {
-            const r = out[c].eliminate(u);
-            if(r !== null) out[c] = r;
-        } 
+    const purelits = Array.from(lits)
+                          .filter(l => !notpure.has(l))
+                          .map(l => Clause.Lit(l,p[l]));
+    for(let v of purelits) i[v.name] = p[v.name]?false:true;
+    let out = clauses;
+    if(purelits.length > 0) {
+        out = [];
+        for(let c of clauses) {
+            let add = false;
+            for(let l of purelits) {
+                if(!c.in(l)) add = true;
+                else add = false;
+            }
+            if(add) out.push(c);
+        }
     }
-    console.log("object p ======>")
-    console.log(p);
-    for(let v of purelits) {
-        i[v] = p[v]?false:true;
-    }
-    console.log(purelits);
-    console.log(notpure);
-    console.log("removing pure literals");
-    console.log(out);
+    // eliminate(clauses,purelits)
     return {clauses: out, i};
 }
 
 function dpll(clauses, i = {}) {
     console.log("Clauses ===>")
-    console.log(printClause(clauses.map(p => p.replace(i))))
-    console.log("Parital Interpretation ===>")
-    console.log(i)
+    console.log(printClause(clauses));
+    console.log("PI ===>");
+    console.log(i);
     const c = isconsistant(clauses,i);
-    console.log("Is Consistent ===>")
+    console.log("Is consistant ===>");
     console.log(c);
-    if((typeof c) === "boolean") return c;
+    if(typeof c === "boolean") return c;
     ({clauses, i} = unitpropgation(clauses,i));
-    console.log("Parital Interpretation 1 ===>")
-    console.log(i)
+    console.log("<=== Unit Propogation ===>");
+    console.log("Clauses ===>")
+    console.log(printClause(clauses));
+    console.log("PI ===>");
+    console.log(i);
+    console.log("==========================")
     if(isconsistant(clauses,i,true) === false) return false;
     ({clauses, i} = pure(clauses,i));
-    console.log("Parital Interpretation 2 ===>")
-    console.log(i)
+    console.log("<=== Pure ===>");
+    console.log("Clauses ===>")
+    console.log(printClause(clauses));
+    console.log("PI ===>");
+    console.log(i);
+    console.log("==============")
     if(clauses.length === 0) return true;
+    // clauses = mclauses;
     const lit = chooseliteral(clauses,i);
-    console.log("Choosen Literal ===>")
-    console.log(lit);
     const ct = Object.assign({},i)
     ct[lit] = true;
-    console.log(ct)
     if(dpll(clauses,ct)) return true;
     const cf = Object.assign({},i)
     cf[lit] = false;
-    console.log(cf)
     if(dpll(clauses,cf)) return true;
     return false;
 }
-
 
 const test1 = [
     Clause.Clause([Clause.Lit("a",false),Clause.Lit("b",false)]),
@@ -233,5 +233,85 @@ const test1 = [
     Clause.Lit("c",true)
 ];
 
-console.log(printClause(test1));
-console.log(dpll(test1));
+const test2 = [
+    Clause.Clause([Clause.Lit("a",false),Clause.Lit("b",true),Clause.Lit("c",true)]),
+    Clause.Clause([Clause.Lit("a",false),Clause.Lit("c",false)]),
+    Clause.Clause([Clause.Lit("b",false),Clause.Lit("c",true)])
+];
+
+let o1 = dpll(test1);
+let o2 = dpll(test2);
+
+
+// { ¬x1 ∨ ¬ x2, ¬x1 ∨ x2, x1 ∨ ¬x2, x2 ∨ ¬x3, x1 ∨ x3 }
+const test3 = [
+    Clause.Clause([Clause.Lit("x1",true),Clause.Lit("x2",true)]),
+    Clause.Clause([Clause.Lit("x1",true),Clause.Lit("x2",false)]),
+    Clause.Clause([Clause.Lit("x1",false),Clause.Lit("x2",true)]),
+    Clause.Clause([Clause.Lit("x2",false),Clause.Lit("x3",true)]),
+    Clause.Clause([Clause.Lit("x1",false),Clause.Lit("x3",false)])
+];
+
+// console.log("{ ¬x1 ∨ ¬x2, ¬x1 ∨ x2, x1 ∨ ¬x2, x2 ∨ ¬x3, x1 ∨ x3 }")
+// console.log(printClause(test3));
+let o3 = dpll(test3);
+
+
+// { ¬x1 ∨ ¬x2, x1 ∨ ¬x2, ¬x1 ∨ ¬x3 }
+const test4 = [
+    Clause.Clause([Clause.Lit("x1",true),Clause.Lit("x2",true)]),
+    Clause.Clause([Clause.Lit("x1",false),Clause.Lit("x2",true)]),
+    Clause.Clause([Clause.Lit("x1",true),Clause.Lit("x3",true)])
+];
+let o4 = dpll(test4);
+
+// { ¬x1 ∨ x3 ∨ x4, ¬x2 ∨ x6 ∨ x4, ¬x2 ∨ ¬x6 ∨ ¬x3,
+//   ¬x4 ∨ ¬x2, x2 ∨ ¬x3 ∨ ¬x1, x2 ∨ x6 ∨ x3,
+//   x2 ∨ ¬x6 ∨ ¬x4, x1 ∨ x5, x1 ∨ x6,
+//   ¬x6 ∨ x3 ∨ ¬x5, x1 ∨ ¬x3 ∨ ¬x5 }
+const test5 = [
+    Clause.Clause([Clause.Lit("x1",true),Clause.Lit("x3",false),Clause.Lit("x4",false)]),
+    Clause.Clause([Clause.Lit("x2",true),Clause.Lit("x6",false),Clause.Lit("x4",false)]),
+    Clause.Clause([Clause.Lit("x2",true),Clause.Lit("x6",true),Clause.Lit("x3",true)]),
+    Clause.Clause([Clause.Lit("x4",true),Clause.Lit("x2",true)]),
+    Clause.Clause([Clause.Lit("x2",false),Clause.Lit("x3",true),Clause.Lit("x1",true)]),
+    Clause.Clause([Clause.Lit("x2",false),Clause.Lit("x6",false),Clause.Lit("x3",false)]),
+    Clause.Clause([Clause.Lit("x2",false),Clause.Lit("x6",true),Clause.Lit("x4",true)]),
+    Clause.Clause([Clause.Lit("x1",false),Clause.Lit("x5",false)]),
+    Clause.Clause([Clause.Lit("x1",false),Clause.Lit("x6",false)]),
+    Clause.Clause([Clause.Lit("x6",true),Clause.Lit("x3",false),Clause.Lit("x5",true)]),
+    Clause.Clause([Clause.Lit("x1",false),Clause.Lit("x3",true),Clause.Lit("x5",true)]),
+];
+// console.log(`
+// { 
+//   ¬x1 ∨ x3 ∨ x4, 
+//   ¬x2 ∨ x6 ∨ x4,
+//   ¬x2 ∨ ¬x6 ∨ ¬x3,
+//   ¬x4 ∨ ¬x2, 
+//   x2 ∨ ¬x3 ∨ ¬x1, 
+//   x2 ∨ x6 ∨ x3,
+//   x2 ∨ ¬x6 ∨ ¬x4, 
+//   x1 ∨ x5, 
+//   x1 ∨ x6,
+//   ¬x6 ∨ x3 ∨ ¬x5, 
+//   x1 ∨ ¬x3 ∨ ¬x5 
+// }
+// `)
+// console.log(test5.map(printClause));
+
+let o5 = dpll(test5);
+
+const test6 = [
+    Clause.Clause([Clause.Lit("tie",false),Clause.Lit("shirt",false)]),
+    Clause.Clause([Clause.Lit("tie",true),Clause.Lit("shirt",false)]),
+    Clause.Clause([Clause.Lit("tie",true),Clause.Lit("shirt",true)])
+];
+let o6 = dpll(test6);
+
+console.log("Final SAT")
+console.log(o1);
+console.log(o2);
+console.log(o3);
+console.log(o4);
+console.log(o5);
+console.log(o6);
