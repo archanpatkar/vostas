@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/archanpatkar/vostas#readme",
   "dependencies": {
+    "saman": "^0.0.3",
     "styp": "^0.0.2"
   }
 }
