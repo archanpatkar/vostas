@@ -74,15 +74,14 @@ Clause.prototype.in = function(l) {
     });
 }
 
-Clause.prototype.eliminate = function(l,opp=false) {
+Clause.prototype.eliminate = function(l) {
     return this.cata({
         Lit: curr => {
-            if(curr.name === l.name && !opp) return null;
-            if(curr.name === l.name && curr.neg !== l.neg) return null;
+            if(curr.name === l.name) return null;
             return curr;
         },
         Clause: ({ lits }) => {
-            let out = lits.map(v => Clause.is(v)?v.eliminate(l,opp):v)
+            let out = lits.map(v => Clause.is(v)?v.eliminate(l):v)
                           .filter(v => v !== null);
             if(out.length === 1) return out[0];
             if(out.length === 0) return null;
@@ -98,21 +97,15 @@ function findLits(clauses) {
     return 0;
 }
 
-function eliminate(clauses,lits,opp=false) {
-    console.log("inside eliminate");
-    console.log("opp:" + opp);
-    console.log(printClause(clauses));
-    console.log(lits);
+function eliminate(clauses,lits) {
     if(lits.length == 0) return clauses;
     const out = [];
     for(let c in clauses) {
         for(let u of lits) {
-            const r = clauses[c].eliminate(u,opp);
+            const r = clauses[c].eliminate(u);
             if(r !== null) out[c] = r;
         } 
     }
-    console.log("eliminate out:")
-    console.log(printClause(out));
     return out;
 }
 
@@ -147,11 +140,8 @@ function unitpropgation(clauses,i) {
     const uc = clauses.filter(isunit);
     for(let v in i) {
         if(i[v]) uc.push(Clause.Lit(v,false))
-        // else uc.push(Clause.Lit(v,true))
     }
     const out = clauses.filter(p => !uc.includes(p));
-    // console.log("out of UP");
-    // console.log(printClause(out));
     return {clauses: eliminate(out,uc), i};
 }
 
@@ -187,36 +177,34 @@ function pure(clauses,i) {
             if(add) out.push(c);
         }
     }
-    // eliminate(clauses,purelits)
     return {clauses: out, i};
 }
 
 function dpll(clauses, i = {}) {
-    console.log("Clauses ===>")
-    console.log(printClause(clauses));
-    console.log("PI ===>");
-    console.log(i);
+    // console.log("Clauses ===>")
+    // console.log(printClause(clauses));
+    // console.log("PI ===>");
+    // console.log(i);
     const c = isconsistant(clauses,i);
-    console.log("Is consistant ===>");
-    console.log(c);
+    // console.log("Is consistant ===>");
+    // console.log(c);
     if(typeof c === "boolean") return c;
     ({clauses, i} = unitpropgation(clauses,i));
-    console.log("<=== Unit Propogation ===>");
-    console.log("Clauses ===>")
-    console.log(printClause(clauses));
-    console.log("PI ===>");
-    console.log(i);
-    console.log("==========================")
+    // console.log("<=== Unit Propogation ===>");
+    // console.log("Clauses ===>")
+    // console.log(printClause(clauses));
+    // console.log("PI ===>");
+    // console.log(i);
+    // console.log("==========================")
     if(isconsistant(clauses,i,true) === false) return false;
     ({clauses, i} = pure(clauses,i));
-    console.log("<=== Pure ===>");
-    console.log("Clauses ===>")
-    console.log(printClause(clauses));
-    console.log("PI ===>");
-    console.log(i);
-    console.log("==============")
+    // console.log("<=== Pure ===>");
+    // console.log("Clauses ===>")
+    // console.log(printClause(clauses));
+    // console.log("PI ===>");
+    // console.log(i);
+    // console.log("==============")
     if(clauses.length === 0) return true;
-    // clauses = mclauses;
     const lit = chooseliteral(clauses,i);
     const ct = Object.assign({},i)
     ct[lit] = true;
