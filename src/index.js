@@ -6,31 +6,47 @@ const Formula = sum("Formula", {
     Var:["name"],
     And:["oprs"],
     Or:["oprs"],
-    Imp: ["oprs"],
-    Bi:["oprs"],
     Not:["v"]
 });
-
-Formula.prototype.convert = function() {
-    // Convert to cnf
-    // return this.cata({
-    //     Var: ({ name }) => name === varn? val: Formula.Var(name),
-    //     And: ({op1, op2}) => Formula.And(
-    //         Formula.is(op1)?op1.replace(varn,val):op1,
-    //         Formula.is(op1)?op2.replace(varn,val):op2
-    //     ),
-    //     Or: ({op1, op2}) => Formula.Or(
-    //         Formula.is(op1)?op1.replace(varn,val):op1,
-    //         Formula.is(op1)?op2.replace(varn,val):op2
-    //     ),
-    //     Not: ({ v }) => Formula.Not(Formula.is(v)?v.replace(varn,val):v)
-    // });
-};
 
 const Clause = sum("Clause", {
     Lit:["name","neg"],
     Clause: ["lits"]
 });
+
+Formula.prototype.convert = function() {
+    // WIP
+    // Convert to cnf
+    return this.cata({
+        Var: ({ name }) => Clause.Lit(name,false),
+        And: ({ oprs }) => [oprs.map(o => o.convert())].flat(),
+        Or: ({ oprs }) => {
+            const out = [];
+            const each = [oprs.map(o => o.convert())];
+            const len = Math.max(...(each.map(a => a.length)));
+            for(let i = 0;i < len; i++) {
+                const f = []
+                for(let j in each) {
+                    const e = each[j][i];
+                    console.log("here:")
+                    console.log(e);
+                    if(e) f.push(e);
+                }
+                if(f.length == 1) out.push(f[0]);
+                else out.push(Clause.Clause(f));
+            }
+            return out;
+        },
+        Not: ({ v }) => {
+            return v.cata({
+                Var: ({ name }) => Clause.Lit(name,true),
+                Not: ({ v }) => v.convert(),
+                And: ({ oprs }) => Formula.And(oprs.map(e => Formula.Not(e))).convert(),
+                Or: ({ oprs }) => Formula.Or(oprs.map(e => Formula.Not(e))).convert(),
+            })
+        }
+    });
+};
 
 function printClause(c) {
     if(Array.isArray(c)) return `{ ${c.map(printClause).join(", ")} }`;
@@ -181,29 +197,11 @@ function pure(clauses,i) {
 }
 
 function dpll(clauses, i = {}) {
-    // console.log("Clauses ===>")
-    // console.log(printClause(clauses));
-    // console.log("PI ===>");
-    // console.log(i);
     const c = isconsistant(clauses,i);
-    // console.log("Is consistant ===>");
-    // console.log(c);
     if(typeof c === "boolean") return c;
     ({clauses, i} = unitpropgation(clauses,i));
-    // console.log("<=== Unit Propogation ===>");
-    // console.log("Clauses ===>")
-    // console.log(printClause(clauses));
-    // console.log("PI ===>");
-    // console.log(i);
-    // console.log("==========================")
     if(isconsistant(clauses,i,true) === false) return false;
     ({clauses, i} = pure(clauses,i));
-    // console.log("<=== Pure ===>");
-    // console.log("Clauses ===>")
-    // console.log(printClause(clauses));
-    // console.log("PI ===>");
-    // console.log(i);
-    // console.log("==============")
     if(clauses.length === 0) return true;
     const lit = chooseliteral(clauses,i);
     const ct = Object.assign({},i)
@@ -303,3 +301,5 @@ console.log(o3);
 console.log(o4);
 console.log(o5);
 console.log(o6);
+
+console.log(printClause(Formula.Or([Formula.Or([Formula.Var("x"), Formula.Var("y")]),Formula.Var("z")]).convert()));
