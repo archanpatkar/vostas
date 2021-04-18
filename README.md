@@ -1,6 +1,7 @@
 <div align="center">
 <img src="./static/vostas.png" />
 </div>
+<br/>
 
 > will eventually implement clause learning based on CDCL
 
