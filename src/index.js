@@ -131,6 +131,7 @@ Formula.prototype.convert = function() {
             return Formula.And(out).convert();
         },
         Imp: ({ oprs }) => {
+            // not tested yet
             let current = Formula.Not(oprs[0]);
             for(let i = 1; i < oprs.length; i++) {
                 if((i % 2) === 0) current = Formula.Not(current);
@@ -139,6 +140,7 @@ Formula.prototype.convert = function() {
             return current.convert();
         },
         Bi: ({ oprs }) => {
+            // not tested yet
             let current = oprs[0];
             for(let i = 1; i < oprs.length; i++) {
                 current = Formula.And(
@@ -335,13 +337,15 @@ function dpll(clauses, i = {}) {
 }
 
 function main(args) {
-    console.log("Reading...");
+    console.log("Vostas 0.0.1 - Sat Solver");
     const code = fs.readFileSync(args[0]).toString();
     const formulaes = Formula.fromSexps(parse(code));
+    console.log("|== Formulas ==|")
     console.log(printFormula(formulaes));
-    console.log("Checking SAT...");
     const clauses = formulaes.map(f => f.convert()).flat();
+    console.log("|== Clauses ==|")
     console.log(printClause(clauses));
+    console.log("|== Checking satisfiability ==|");
     const sat = dpll(clauses);
     if(sat) console.log("SAT");
     else console.log("UNSAT");
