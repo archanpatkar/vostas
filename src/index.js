@@ -1,11 +1,82 @@
 const {equal} = require("saman");
 const {sum, tagged} = require("styp");
 
+const white = [" ", "\n", "\b", "\t", "\r"];
+function isWhite(c) {
+    return white.includes(c);
+}
+
+const digits = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+function isNumber(c) {
+    return digits.includes(c);
+}
+
+function isAlphabet(c) {
+    if (c) {
+        const av = c.charCodeAt(0);
+        return av >= "a".charCodeAt(0) && av <= "z".charCodeAt(0) ||
+            av >= "A".charCodeAt(0) && av <= "Z".charCodeAt(0);
+    }
+    return false;
+}
+
+function isBool(s) {
+    return s == "true" || s == "false";
+}
+
+function parseI(str,brackets=["(",")"]) {
+    let curr = str[0];
+    if(isWhite(curr)) {
+        str.shift();
+        curr = str[0];
+        while(isWhite(curr)) {
+            str.shift();
+            curr = str[0];
+        }
+    }
+    if(curr === brackets[0]) {
+        str.shift();
+        const out = [];
+        let curr = str[0];
+        while(curr !== brackets[1]) {
+            out.push(parseI(str,brackets))
+            curr = str[0];
+        }
+        str.shift();
+        if(curr !== brackets[1]) throw new Error(`Expected ${brackets[1]}`);
+        return out;
+    }
+    if(isAlphabet(curr) || curr === "_") {
+        buff = str.shift();
+        curr = str[0]; 
+        while(isAlphabet(curr) || isNumber(curr) || curr === "_") {
+            str.shift();
+            buff += curr;
+            curr = str[0];
+        }
+        if(isBool(buff)) return buff == "true"?true:false;
+        return buff;
+    }
+    return curr;
+}
+
+function parse(str,brackets=["(",")"]) {
+    if(typeof str === "string") str = str.split("");
+    const final = [];
+    while(str.length > 0) {
+        const out = parseI(str,brackets);
+        if(out) final.push(out);
+    }
+    return final;
+}
+
 // Currently written in an simple but slow and unoptimized way will make it efficient later
 const Formula = sum("Formula", {
     Var:["name"],
     And:["oprs"],
     Or:["oprs"],
+    Imp:["oprs"],
+    Bi:["oprs"],
     Not:["v"]
 });
 
@@ -14,39 +85,88 @@ const Clause = sum("Clause", {
     Clause: ["lits"]
 });
 
+const ops = ["and", "or", "imp", "bicon"];
+const opsmaps = {
+    "and":"And",
+    "or":"Or",
+    "imp": "Imp",
+    "bicon": "Bi",
+    "not": "Not"
+};
+
+Formula.fromSexps = function(sexp) {
+    if(typeof sexp === "boolean") return sexp;
+    if(typeof sexp === "string") return Formula.Var(sexp);
+    if(typeof sexp[0] === "string") {
+        if(sexp[0] === "not") 
+            return Formula.Not(Formula.fromSexps(sexp[1]));
+        if(ops.includes(sexp[0])){
+            const oprs = [];
+            for(let i = 1;i < sexp.length;i++) oprs.push(Formula.fromSexps(sexp[i]))
+            return Formula[opsmaps[sexp[0]]](oprs);
+        }
+    }
+    for(let i = 0;i < sexp.length;i++) 
+        sexp[i] = Formula.fromSexps(sexp[i]);
+    return sexp;
+};
+
 Formula.prototype.convert = function() {
     // WIP
     // Convert to cnf
     return this.cata({
         Var: ({ name }) => Clause.Lit(name,false),
-        And: ({ oprs }) => [oprs.map(o => o.convert())].flat(),
+        And: ({ oprs }) => [oprs.map(o => Formula.is(o)?o.convert():o)].flat(),
         Or: ({ oprs }) => {
+            const ands = oprs.filter(v => Formula.And.is(v));
+            const notands = oprs.filter(v => !ands.includes(v));
+            if(ands.length === 0) return Clause.Clause(oprs.map(o => Formula.is(o)?o.convert():o));
+            // console.log(ands.toString());
+            // console.log(notands.toString());
             const out = [];
-            const each = [oprs.map(o => o.convert())];
-            const len = Math.max(...(each.map(a => a.length)));
-            for(let i = 0;i < len; i++) {
-                const f = []
-                for(let j in each) {
-                    const e = each[j][i];
-                    console.log("here:")
-                    console.log(e);
-                    if(e) f.push(e);
-                }
-                if(f.length == 1) out.push(f[0]);
-                else out.push(Clause.Clause(f));
+            for(let a of ands) {
+                for(let e of a.oprs) out.push(Formula.Or([...notands,e]));
             }
-            return out;
+            return Formula.And(out).convert();
+        },
+        Imp: ({ oprs }) => {
+            let current = Formula.Not(oprs[0]);
+            for(let i = 1; i < oprs.length; i++) {
+                if((i % 2) === 0) current = Formula.Not(current);
+                else current = Formula.Or([current, oprs[i]]);
+            }
+            return current.convert();
+        },
+        Bi: ({ oprs }) => {
+            let current = oprs[0];
+            for(let i = 1; i < oprs.length; i++) {
+                current = Formula.And(
+                    Formula.Or([current, Formula.Not(oprs[i])]),
+                    Formula.Or([Formula.Not(current), oprs[i]])
+                );
+            }
+            return current.convert();
         },
         Not: ({ v }) => {
             return v.cata({
                 Var: ({ name }) => Clause.Lit(name,true),
                 Not: ({ v }) => v.convert(),
-                And: ({ oprs }) => Formula.And(oprs.map(e => Formula.Not(e))).convert(),
-                Or: ({ oprs }) => Formula.Or(oprs.map(e => Formula.Not(e))).convert(),
-            })
+                And: ({ oprs }) => Formula.Or(oprs.map(e => Formula.Not(e).convert())).convert(),
+                Or: ({ oprs }) => Formula.And(oprs.map(e => Formula.Not(e).convert())).convert(),
+            });
         }
     });
 };
+
+function printFormula(f) {
+    if(Array.isArray(f)) return f.map(printFormula).join("\n");
+    if(Formula.Var.is(f)) return f.name;
+    if(Formula.Not.is(f)) return `¬${printFormula(f.v)}`;
+    if(Formula.Or.is(f)) return `(${f.oprs.map(printFormula).join(" ∨ ")})`;
+    if(Formula.And.is(f)) return `(${f.oprs.map(printFormula).join(" ∧ ")})`;
+    if(Formula.Imp.is(f)) return `(${f.oprs.map(printFormula).join(" → ")})`;
+    if(Formula.Bi.is(f)) return `(${f.oprs.map(printFormula).join(" ↔ ")})`;
+}
 
 function printClause(c) {
     if(Array.isArray(c)) return `{ ${c.map(printClause).join(", ")} }`;
@@ -217,5 +337,7 @@ module.exports = {
     dpll,
     printClause,
     Clause, 
-    Formula
+    Formula,
+    printFormula,
+    parse
 };
