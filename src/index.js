@@ -1,3 +1,4 @@
+const fs = require("fs");
 const {equal} = require("saman");
 const {sum, tagged} = require("styp");
 
@@ -332,6 +333,22 @@ function dpll(clauses, i = {}) {
     if(dpll(clauses,cf)) return true;
     return false;
 }
+
+function main(args) {
+    console.log("Reading...");
+    const code = fs.readFileSync(args[0]).toString();
+    const formulaes = Formula.fromSexps(parse(code));
+    console.log(printFormula(formulaes));
+    console.log("Checking SAT...");
+    const clauses = formulaes.map(f => f.convert()).flat();
+    console.log(printClause(clauses));
+    const sat = dpll(clauses);
+    if(sat) console.log("SAT");
+    else console.log("UNSAT");
+}
+
+const args = process.argv.slice(2);
+if(args.length > 0) main(args);
 
 module.exports = {
     dpll,
