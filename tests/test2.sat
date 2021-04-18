@@ -1,0 +1,4 @@
+(and 
+    (or tie shirt)
+    (or (not tie) shirt)
+    (or (not tie) (not shirt)))

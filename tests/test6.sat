@@ -1,0 +1,3 @@
+(or (not x1) (not x2))
+(or x1 (not x2))
+(or (not x1) (not x3))

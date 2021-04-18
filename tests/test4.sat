@@ -1,0 +1,3 @@
+(or a (not b) (not c))
+(or a c)
+(or b (not c))
