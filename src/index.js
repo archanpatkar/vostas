@@ -1,6 +1,5 @@
 const fs = require("fs");
-const {equal} = require("saman");
-const {sum, tagged} = require("styp");
+const { sum } = require("styp");
 
 const white = [" ", "\n", "\b", "\t", "\r"];
 function isWhite(c) {
