@@ -1,3 +1,6 @@
+// IGNORE
+// simple manual testing
+const fs = require("fs");
 const { dpll, Clause, Formula, printClause, printFormula, parse } = require("./index");
 
 const test1 = [
@@ -89,10 +92,11 @@ console.log(o4);
 console.log(o5);
 console.log(o6);
 
-console.log(Formula.Not(Formula.Or([Formula.Var("a"),Formula.Var("b"),Formula.Not(Formula.Var("c"))])).convert().toString())
-console.log(Formula.Or([Formula.Var("p"),Formula.And([Formula.Var("q"),Formula.Var("r")])]).convert().toString())
-
-const f1 = Formula.fromSexps(parse(`(or (and x1 x2) x3 (not x5))`));
-console.log(printFormula(f1));
-console.log(printClause(f1.map(f => f.convert())[0]));
-console.log(printClause(Formula.Or([Formula.Or([Formula.Var("x"), Formula.Var("y")]),Formula.Var("z")]).convert()));
+// console.log(printClause(Formula.Not(Formula.Or([Formula.Var("a"),Formula.Var("b"),Formula.Not(Formula.Var("c"))])).convert()))
+// console.log(printClause(Formula.Or([Formula.Var("p"),Formula.And([Formula.Var("q"),Formula.Var("r")])]).convert()))
+// const f1 = Formula.fromSexps(parse(fs.readFileSync(`${__dirname}/test1.sat`).toString()));
+// console.log(printFormula(f1));
+// let temp = f1.map(f => f.convert())[0];
+// console.log(printClause(temp));
+// console.log(dpll(temp));
+// console.log(printClause(Formula.Or([Formula.Or([Formula.Var("x"), Formula.Var("y")]),Formula.Var("z")]).convert()));
